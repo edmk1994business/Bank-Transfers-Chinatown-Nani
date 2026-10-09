@@ -60,9 +60,12 @@ PALETTES: dict[str, dict[str, str]] = {
 }
 
 # ----------------------------------------------------------------- dates --
-PRESETS = ["Yesterday", "Last 7 Days", "This Month", "Custom Range"]
+PRESETS = ["Yesterday", "Pick Date", "Last 7 Days", "This Month", "Custom Range"]
 DEFAULT_PRESET = "Yesterday"
+PICK = "Pick Date"
 CUSTOM = "Custom Range"
+SINGLE_DAY_PRESETS = ("Yesterday", PICK)          # show one "Pick date" input
+RANGE_PRESETS = ("Last 7 Days", "This Month", CUSTOM)  # show Start / End inputs
 
 # ----------------------------------------------------------- invoicing --
 GROUP_PERIOD = "Whole period"
