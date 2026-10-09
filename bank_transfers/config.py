@@ -25,6 +25,7 @@ BRAND_RULES: list[tuple[str, tuple[str, ...]]] = [
 ]
 BRAND_OPTIONS = ["ChinaTown", "Nani", "All brands"]
 ALL_BRANDS = "All brands"
+DEFAULT_BRAND = "ChinaTown"
 
 # Palette keys: accent (pills, bars), deep (hover/strong text), soft (chips),
 # tint (card hover), bg (page), line (borders).
@@ -59,8 +60,8 @@ PALETTES: dict[str, dict[str, str]] = {
 }
 
 # ----------------------------------------------------------------- dates --
-PRESETS = ["Today", "Yesterday", "Last 7 Days", "This Month", "Custom Range"]
-DEFAULT_PRESET = "This Month"
+PRESETS = ["Yesterday", "Last 7 Days", "This Month", "Custom Range"]
+DEFAULT_PRESET = "Yesterday"
 CUSTOM = "Custom Range"
 
 # ----------------------------------------------------------- invoicing --
