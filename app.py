@@ -15,7 +15,8 @@ import streamlit as st
 
 from bank_transfers import dates, ui
 from bank_transfers.config import (
-    ALL_BRANDS, ASSETS, BRAND_OPTIONS, CUSTOM, DEFAULT_BRAND, GROUP_DAY, GROUP_PERIOD, PRESETS,
+    ALL_BRANDS, ASSETS, BRAND_OPTIONS, CUSTOM, DEFAULT_BRAND, GROUP_DAY, GROUP_PERIOD, PICK, PRESETS,
+    RANGE_PRESETS,
 )
 from bank_transfers.data import clear_cache, load_transfers
 from bank_transfers.export import (
@@ -27,7 +28,6 @@ from bank_transfers.invoices import (
 from bank_transfers.theme import APP_JS, build_css
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-RANGE_PRESETS = {"Last 7 Days", "This Month", CUSTOM}
 
 st.set_page_config(
     page_title="Bank Transfers · Invoicing",
@@ -79,6 +79,9 @@ with st.sidebar:
                  on_change=dates.on_preset, args=("sb_preset",))
         if ss.d_preset == CUSTOM:
             st.date_input("Custom range", key="sb_range", format="DD.MM.YYYY", on_change=dates.on_sidebar_range)
+        elif ss.d_preset == PICK:
+            st.date_input("Pick date", key="sb_day", format="DD.MM.YYYY", max_value=dates.today(),
+                          on_change=dates.on_day, args=("sb_day",))
         st.caption(f"{fmt_date(ss.d_start)} – {fmt_date(ss.d_end)}")
 
     with st.container(key="sbsec_3"):
@@ -127,12 +130,15 @@ with st.container(key="hdr"):
     with right:
         st.radio("Quick period", PRESETS, key="hd_preset", horizontal=True, label_visibility="collapsed",
                  on_change=dates.on_preset, args=("hd_preset",))
-        # Start/End inputs only for range presets; Yesterday (single day) hides them.
-        if ss.d_preset in RANGE_PRESETS:
-            with st.container(key="hd_dates"):
-                c1, c2 = st.columns(2, gap="small", wrap=False)
+        # Range presets -> Start / End inputs.  Yesterday / Pick Date -> one "Pick date" input.
+        with st.container(key="hd_dates"):
+            c1, c2 = st.columns(2, gap="small", wrap=False)
+            if ss.d_preset in RANGE_PRESETS:
                 c1.date_input("Start date", key="hd_start", format="DD.MM.YYYY", on_change=dates.on_header_dates)
                 c2.date_input("End date", key="hd_end", format="DD.MM.YYYY", on_change=dates.on_header_dates)
+            else:
+                c1.date_input("Pick date", key="hd_day", format="DD.MM.YYYY", max_value=dates.today(),
+                              on_change=dates.on_day, args=("hd_day",))
 
 # ------------------------------------------------------------------- KPIs --
 view = filter_rows(df_all, brand, start, end, pay_filter)
