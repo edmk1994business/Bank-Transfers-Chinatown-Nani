@@ -27,6 +27,7 @@ from bank_transfers.invoices import (
 from bank_transfers.theme import APP_JS, build_css
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+RANGE_PRESETS = {"Last 7 Days", "This Month", CUSTOM}
 
 st.set_page_config(
     page_title="Bank Transfers · Invoicing",
@@ -126,10 +127,12 @@ with st.container(key="hdr"):
     with right:
         st.radio("Quick period", PRESETS, key="hd_preset", horizontal=True, label_visibility="collapsed",
                  on_change=dates.on_preset, args=("hd_preset",))
-        with st.container(key="hd_dates"):
-            c1, c2 = st.columns(2, gap="small", wrap=False)
-            c1.date_input("Start date", key="hd_start", format="DD.MM.YYYY", on_change=dates.on_header_dates)
-            c2.date_input("End date", key="hd_end", format="DD.MM.YYYY", on_change=dates.on_header_dates)
+        # Start/End inputs only for range presets; Yesterday (single day) hides them.
+        if ss.d_preset in RANGE_PRESETS:
+            with st.container(key="hd_dates"):
+                c1, c2 = st.columns(2, gap="small", wrap=False)
+                c1.date_input("Start date", key="hd_start", format="DD.MM.YYYY", on_change=dates.on_header_dates)
+                c2.date_input("End date", key="hd_end", format="DD.MM.YYYY", on_change=dates.on_header_dates)
 
 # ------------------------------------------------------------------- KPIs --
 view = filter_rows(df_all, brand, start, end, pay_filter)
