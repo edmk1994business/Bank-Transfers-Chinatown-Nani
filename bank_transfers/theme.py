@@ -516,7 +516,7 @@ APP_JS = r"""
     var q = normq(raw);
     if (!force && q === lastQ) return;
     lastQ = q;
-    var d = digitsOf(q), n = 0, qty = 0, amt = 0;
+    var d = digitsOf(q), n = 0, checks = 0, qty = 0, amt = 0;
     document.querySelectorAll('details.cp[data-name]').forEach(function (c) {
       var nameHit = !!q && c.dataset.name.indexOf(q) !== -1;
       var totalHit = !!d && c.dataset.amount.indexOf(d) !== -1;
@@ -538,9 +538,12 @@ APP_JS = r"""
       var want = !!q && rows > 0 && !nameHit;   // match is inside the lines: open the card
       if (want && !c.open && c.dataset.closedq !== q) { c.__prog = true; c.open = true; c.dataset.auto = '1'; }
       else if (!want && c.dataset.auto === '1') { c.__prog = true; c.open = false; delete c.dataset.auto; }
-      if (match) { n++; qty += parseFloat(c.dataset.qty) || 0; amt += parseFloat(c.dataset.total) || 0; }
+      if (match) { n++; checks += parseInt(c.dataset.days, 10) || 1;
+                   qty += parseFloat(c.dataset.qty) || 0; amt += parseFloat(c.dataset.total) || 0; }
     });
-    document.querySelectorAll('[data-sum="count"]').forEach(function (e) { setText(e, fmt(n)); });
+    document.querySelectorAll('[data-sum="cards"]').forEach(function (e) { setText(e, fmt(n)); });
+    // checks / invoices = unique (counterparty, date, brand) among the visible cards
+    document.querySelectorAll('[data-sum="checks"]').forEach(function (e) { setText(e, fmt(checks)); });
     document.querySelectorAll('[data-sum="qty"]').forEach(function (e) { setText(e, fmt(qty, 3)); });
     document.querySelectorAll('[data-sum="amount"]').forEach(function (e) { setText(e, fmt(amt)); });
     var nm = document.querySelector('[data-nomatch]');
