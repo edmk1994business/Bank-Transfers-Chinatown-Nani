@@ -146,7 +146,7 @@ def all_invoices_xlsx(invoices: list[Invoice], start: date, end: date, per_day: 
     tot_qty = sum(i.qty for i in invoices)
     tot_amt = sum(i.amount for i in invoices)
     totals = [
-        ("Checks / Invoices", len(invoices), "#,##0"),
+        ("Checks / Invoices", sum(len(i.dates) for i in invoices), "#,##0"),  # unique (counterparty, date, brand)
         ("Items QTY", _num(tot_qty), "#,##0.###" if not float(tot_qty).is_integer() else "#,##0"),
         ("Invoice sales (AMD)", _num(tot_amt), "#,##0"),
     ]
