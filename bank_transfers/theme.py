@@ -142,6 +142,11 @@ def build_css(brand: str) -> str:
 .ico-bank {{ --m:var(--ico-bank); }} .ico-copy {{ --m:var(--ico-copy); width:16px; height:16px; }}
 .ico-cal {{ --m:var(--ico-cal); }}
 
+/* the global `header {{visibility:hidden}}` rule above also hid the date-picker's
+   month/year navigation (a header element inside the calendar) - bring it back.
+   NB: never write literal tags in this CSS: st.html drops the whole block. */
+[data-testid="stDateInputCalendar"] header, [data-testid="stDateInputCalendar"] header * {{ visibility:visible !important; }}
+
 /* ---------- base ---------- */
 .stApp, [data-testid="stAppViewContainer"] {{ background: var(--bg); }}
 .stApp, .stApp p, .stApp label, .stApp input, .stApp button, .stApp td, .stApp th,
