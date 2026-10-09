@@ -5,7 +5,7 @@ from datetime import date
 from html import escape
 
 from .config import ALL_BRANDS, NO_COUNTERPARTY
-from .invoices import Invoice, fmt_int, fmt_price, fmt_qty, period_label
+from .invoices import Invoice, amount_key, fmt_int, fmt_price, fmt_qty, norm_text, period_label
 from .theme import brand_logo
 
 BANK_ICON = '<i class="ico ico-bank"></i>'
@@ -71,8 +71,30 @@ def kpi_grid(k: dict) -> str:
 def section_head(n: int, per_day: bool) -> str:
     hint = "One card per counterparty per day" if per_day else "One card per counterparty for the period"
     return (
-        f'<div class="sec-head"><h3>Counterparties<span class="count">{n}</span></h3>'
+        f'<div class="sec-head"><h3>Counterparties<span class="count" data-sum="count">{n}</span></h3>'
         f'<span class="hint">{hint} · tap a card to see its invoice lines</span></div>'
+    )
+
+
+def summary_strip(invoices: list[Invoice], query: str) -> str:
+    """Filtered totals beside the search box; the browser script keeps them live while typing."""
+    n = len(invoices)
+    qty = sum(i.qty for i in invoices)
+    amount = sum(i.amount for i in invoices)
+    return (
+        f'<div class="sumstrip" data-q="{escape(norm_text(query))}">'
+        f'<div class="sum"><span class="lbl">Checks / Invoices</span><span class="val" data-sum="count">{n}</span></div>'
+        f'<div class="sum"><span class="lbl">Items QTY</span><span class="val" data-sum="qty">{fmt_qty(qty)}</span></div>'
+        f'<div class="sum amount"><span class="lbl">Invoice sales</span><span class="val">'
+        f'<span data-sum="amount">{fmt_int(amount)}</span><span class="cur">֏</span></span></div></div>'
+    )
+
+
+def no_match(query: str, n: int) -> str:
+    hidden = "" if (query.strip() and n == 0) else " hidden"
+    return (
+        f'<div class="nomatch" data-nomatch{hidden}>No counterparty, item or amount matches '
+        f'«<span class="q">{escape(query.strip())}</span>». Clear the search to see all cards.</div>'
     )
 
 
@@ -92,6 +114,7 @@ def counterparty_card(inv: Invoice, rank: int, show_brand: bool, per_day: bool, 
         meta.append(f"<span>{period_label(inv.dates[0], inv.dates[-1])}</span>")
     meta.append('<span class="dot"></span>')
     meta.append(f'<span class="share" title="Share of transfer sales in the selected period">{inv.share:.1%}</span>')
+    meta.append('<span class="hitchip" hidden></span>')
 
     pays = "".join(f'<span class="pay">{BANK_ICON}{escape(p)}</span>' for p in inv.pay_types)
     stats = (
@@ -106,7 +129,8 @@ def counterparty_card(inv: Invoice, rank: int, show_brand: bool, per_day: bool, 
     for r in inv.items.itertuples():
         am = f'<div class="dish-am">{escape(r.am)}</div>' if r.am else ""
         rows.append(
-            f'<tr><td class="item"><div class="dish-en">{escape(r.en)}</div>{am}</td>'
+            f'<tr data-dish="{escape(norm_text(r.dish))}" data-amt="{amount_key(r.amount)}">'
+            f'<td class="item"><div class="dish-en">{escape(r.en)}</div>{am}</td>'
             f'<td class="num" data-label="QTY">{fmt_qty(r.qty)}</td>'
             f'<td class="num" data-label="Unit price">{fmt_price(r.unit_price)}</td>'
             f'<td class="num" data-label="Total ֏">{fmt_int(r.amount)}</td></tr>'
@@ -126,10 +150,11 @@ def counterparty_card(inv: Invoice, rank: int, show_brand: bool, per_day: bool, 
         f'<td class="num" data-label="Total ֏">{fmt_int(inv.amount)}</td></tr></tfoot></table></div>'
     )
     return (
-        f'<details class="cp" data-key="{escape(html_key)}"><summary>'
-        f'<span class="cp-rank">{rank:02d}</span>'
+        f'<details class="cp" data-key="{escape(html_key)}" data-name="{escape(norm_text(inv.counterparty))}" '
+        f'data-amount="{amount_key(inv.amount)}" data-total="{inv.amount:.2f}" data-qty="{inv.qty:g}"><summary>'
+        f'<span class="chev" aria-hidden="true"></span><span class="cp-rank">{rank:02d}</span>'
         f'<div class="cp-id"><div class="{name_cls}">{name}</div><div class="cp-meta">{"".join(meta)}</div></div>'
-        f"{stats}<span class=\"chev\" aria-hidden=\"true\"></span></summary>"
+        f"{stats}</summary>"
         f'<div class="cp-body">{days}{table}</div></details>'
     )
 
