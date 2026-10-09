@@ -128,39 +128,80 @@ def invoice_xlsx(inv: Invoice, start: date, end: date) -> bytes:
     return buf.getvalue()
 
 
-def all_invoices_xlsx(invoices: list[Invoice], start: date, end: date, per_day: bool) -> bytes:
+def all_invoices_xlsx(invoices: list[Invoice], start: date, end: date, per_day: bool,
+                      brand: str = "", query: str = "") -> bytes:
+    """Exactly the cards on screen (brand + period + search) with every invoice line."""
     wb = Workbook()
     ws = wb.active
     ws.title = "Summary"
-    ws["A1"] = f"Bank transfer invoices · {fmt_date(start)} – {fmt_date(end)}"
+    ws["A1"] = "Bank transfer invoices"
     ws["A1"].font = Font(bold=True, size=14)
+    q = query.strip()
+    context = [
+        ("Brand", brand or "—"),
+        ("Period", f"{fmt_date(start)} – {fmt_date(end)}"),
+        ("Search", f"«{q}»" if q else "— (all counterparties)"),
+        ("Grouping", "Per day" if per_day else "Whole period"),
+    ]
+    tot_qty = sum(i.qty for i in invoices)
+    tot_amt = sum(i.amount for i in invoices)
+    totals = [
+        ("Checks / Invoices", len(invoices), "#,##0"),
+        ("Items QTY", _num(tot_qty), "#,##0.###" if not float(tot_qty).is_integer() else "#,##0"),
+        ("Invoice sales (AMD)", _num(tot_amt), "#,##0"),
+    ]
+    r = 3
+    for k, v in context:
+        ws.cell(row=r, column=1, value=k).font = Font(color="6B7280")
+        ws.cell(row=r, column=2, value=v).font = Font(bold=True)
+        r += 1
+    r += 1
+    for k, v, f in totals:
+        ws.cell(row=r, column=1, value=k).font = Font(bold=True)
+        cell = ws.cell(row=r, column=2, value=v)
+        cell.font = Font(bold=True, size=12)
+        cell.number_format = f
+        cell.alignment = Alignment(horizontal="left")
+        for c in (1, 2):
+            ws.cell(row=r, column=c).fill = _TOTAL_FILL
+        r += 1
+    top = r + 1
     head = ["Counterparty (Контрагент)", "Brand", "Payment Type", "Transfer days",
-            "Items QTY", "Invoice Amount (AMD)", "Share"]
+            "Items QTY", "Invoice Amount (AMD)", "Share of period"]
     rows = [[i.counterparty, i.brand, ", ".join(i.pay_types), ", ".join(fmt_date(d) for d in i.dates),
              _num(i.qty), _num(i.amount), round(i.share, 4)] for i in invoices]
-    end_row = _write_table(ws, 3, head, rows, {5: "#,##0", 6: "#,##0", 7: "0.0%"}, [34, 12, 18, 30, 12, 20, 9])
+    end_row = _write_table(ws, top, head, rows, {5: _fmt([i.qty for i in invoices] or [0]), 6: "#,##0", 7: "0.0%"},
+                           [34, 22, 18, 30, 12, 20, 14])
     ws.cell(row=end_row, column=1, value="Total").font = Font(bold=True)
-    for c, v, f in ((5, _num(sum(i.qty for i in invoices)), "#,##0"), (6, _num(sum(i.amount for i in invoices)), "#,##0")):
+    for c, v, f in ((5, _num(tot_qty), "#,##0"), (6, _num(tot_amt), "#,##0")):
         cell = ws.cell(row=end_row, column=c, value=v)
         cell.font = Font(bold=True)
         cell.number_format = f
     for c in range(1, 8):
         ws.cell(row=end_row, column=c).fill = _TOTAL_FILL
-    ws.freeze_panes = "A4"
+    ws.freeze_panes = ws.cell(row=top + 1, column=1)
 
     ws2 = wb.create_sheet("Invoice lines")
-    head2 = ["Counterparty (Контрагент)", "Brand"] + (["Date"] if per_day else []) + ITEM_COLUMNS
+    head2 = (["Counterparty (Контрагент)", "Brand"] + (["Date"] if per_day else ["Transfer days"])
+             + ITEM_COLUMNS)
     rows2 = []
     for i in invoices:
-        for r in i.items.itertuples():
-            rows2.append([i.counterparty, i.brand] + ([fmt_date(i.dates[0])] if per_day else [])
-                         + [r.dish, _num(r.qty), _num(r.unit_price), _num(r.amount)])
-    off = 1 if per_day else 0
-    cols = {c: [r[c - 1] for r in rows2] or [0] for c in (4 + off, 5 + off, 6 + off)}
-    _write_table(ws2, 1, head2, rows2, {c: _fmt(v) for c, v in cols.items()},
-                 [30, 12] + ([12] if per_day else []) + [58, 15, 17, 19])
+        when = fmt_date(i.dates[0]) if per_day else ", ".join(fmt_date(d) for d in i.dates)
+        for it in i.items.itertuples():
+            rows2.append([i.counterparty, i.brand, when, it.dish, _num(it.qty), _num(it.unit_price), _num(it.amount)])
+    cols = {c: [row[c - 1] for row in rows2] or [0] for c in (5, 6, 7)}
+    end2 = _write_table(ws2, 1, head2, rows2, {c: _fmt(v) for c, v in cols.items()},
+                        [30, 12, 22 if not per_day else 12, 58, 15, 17, 19])
+    ws2.cell(row=end2, column=1, value=f"Total · {len(rows2)} lines").font = Font(bold=True)
+    for c, v in ((5, _num(tot_qty)), (7, _num(tot_amt))):
+        cell = ws2.cell(row=end2, column=c, value=v)
+        cell.font = Font(bold=True)
+        cell.number_format = _fmt(cols[c])
+    for c in range(1, 8):
+        ws2.cell(row=end2, column=c).fill = _TOTAL_FILL
     ws2.freeze_panes = "A2"
-    ws2.auto_filter.ref = f"A1:{get_column_letter(len(head2))}{len(rows2) + 1}"
+    if rows2:
+        ws2.auto_filter.ref = f"A1:G{len(rows2) + 1}"
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
