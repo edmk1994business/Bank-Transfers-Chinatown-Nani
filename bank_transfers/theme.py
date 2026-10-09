@@ -303,8 +303,8 @@ html, body, [data-testid="stMain"] {{ overflow-x: clip; }}
 
 details.cp {{ margin:0; }}
 details.cp > summary {{
-  list-style:none; cursor:pointer; display:grid; align-items:center; gap:10px 16px;
-  grid-template-columns:auto minmax(0,1fr) auto auto; padding:15px 16px; -webkit-tap-highlight-color:transparent;
+  list-style:none; cursor:pointer; display:grid; align-items:center; gap:10px 14px;
+  grid-template-columns:auto auto minmax(0,1fr) auto; padding:15px 18px 15px 14px; -webkit-tap-highlight-color:transparent;
 }}
 details.cp > summary::-webkit-details-marker {{ display:none; }}
 details.cp > summary:hover {{ background:var(--tint); }}
@@ -329,7 +329,9 @@ details.cp > summary:hover {{ background:var(--tint); }}
   background:#fff; transition:transform .2s ease, background .15s; }}
 .chev::before {{ content:""; width:7px; height:7px; border-right:2px solid var(--muted); border-bottom:2px solid var(--muted);
   transform:translateY(-2px) rotate(45deg); }}
-details.cp[open] .chev {{ transform:rotate(180deg); background:var(--soft); }}
+details.cp[open] .chev {{ transform:rotate(180deg); background:var(--soft); border-color:rgba(var(--acc-rgb),.35); }}
+details.cp > summary:hover .chev {{ border-color:var(--acc); }}
+details.cp[open] .chev::before, details.cp > summary:hover .chev::before {{ border-color:var(--deep); }}
 
 .cp-body {{ padding:0 16px 6px; animation:fadeIn .18s ease-out; }}
 @keyframes fadeIn {{ from {{ opacity:0; transform:translateY(-3px); }} to {{ opacity:1; transform:none; }} }}
@@ -348,7 +350,7 @@ table.items .idx {{ color:#9CA3AF; width:28px; font-variant-numeric:tabular-nums
 .dish-am {{ font-weight:400; color:var(--muted); font-size:12.5px; line-height:1.35; margin-top:1px; }}
 table.items tfoot td {{ background:var(--tint); font-weight:700; border-top:1px solid var(--line); border-bottom:none; }}
 @media (max-width: 760px) {{
-  details.cp > summary {{ grid-template-columns:auto minmax(0,1fr) auto; grid-template-areas:"rank id chev" "stats stats stats"; padding:13px 13px; }}
+  details.cp > summary {{ grid-template-columns:auto auto minmax(0,1fr); grid-template-areas:"chev rank id" "stats stats stats"; gap:10px 10px; padding:13px 13px 13px 11px; }}
   .cp-rank {{ grid-area:rank; }} .cp-id {{ grid-area:id; }} .chev {{ grid-area:chev; }}
   .cp-meta .dot {{ display:none; }} .cp-meta {{ gap:4px 8px; }}
   .cp-stats {{ grid-area:stats; justify-content:space-between; gap:10px; flex-wrap:wrap;
@@ -373,7 +375,39 @@ table.items tfoot td {{ background:var(--tint); font-weight:700; border-top:1px 
   table.items tfoot tr {{ background:var(--tint); }}
   table.items tfoot td.lbl {{ grid-column:1 / -1; }}
   table.items tfoot td.blank {{ display:none; }}
+  table.items tr[data-hit="1"] {{ background:var(--soft); box-shadow:inset 3px 0 0 var(--acc); }}
 }}
+
+/* ---------- toolbar: instant search + filtered totals ---------- */
+[data-testid="InputInstructions"] {{ display:none !important; }}
+.st-key-q [data-testid="stTextInputRootElement"] {{ height:46px; }}
+.st-key-q input {{ font-size:14.5px; }}
+.sumstrip {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); background:var(--card);
+  border:1px solid var(--line); border-radius:12px; overflow:hidden; box-shadow:var(--shadow); }}
+.sumstrip .sum {{ padding:6px 14px 7px; display:flex; flex-direction:column; gap:1px; min-width:0; }}
+.sumstrip .sum + .sum {{ border-left:1px solid var(--hair); }}
+.sumstrip .lbl {{ font-size:9.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+.sumstrip .val {{ font-size:17px; font-weight:800; color:var(--ink); font-variant-numeric:tabular-nums; white-space:nowrap;
+  letter-spacing:-.01em; overflow:hidden; text-overflow:ellipsis; }}
+.sumstrip .amount .val {{ color:var(--deep); }}
+.sumstrip .cur {{ font-size:.7em; color:var(--muted); margin-left:2px; }}
+@media (max-width: 640px) {{
+  .sumstrip .sum {{ padding:6px 10px 7px; }}
+  .sumstrip .val {{ font-size:15px; }}
+  .sumstrip .lbl {{ font-size:9px; letter-spacing:.05em; }}
+}}
+.nomatch {{ background:var(--card); border:1px dashed var(--line); border-radius:var(--radius); padding:22px 18px;
+  text-align:center; color:var(--muted); font-size:14px; margin-top:4px; }}
+.nomatch .q {{ color:var(--ink); font-weight:700; }}
+.nomatch[hidden], .hitchip[hidden] {{ display:none !important; }}
+.hitchip {{ border-radius:999px; padding:2px 8px; background:var(--acc); color:var(--on); font-size:11.5px; font-weight:700; }}
+table.items tr[data-hit="1"] td {{ background:var(--soft) !important; }}
+table.items tr[data-hit="1"] td.item {{ box-shadow:inset 3px 0 0 var(--acc); }}
+/* cards hidden by the instant search */
+details.cp[data-hide="1"] {{ display:none; }}
+[class*="st-key-cp_"]:has(details.cp[data-hide="1"]) {{ display:none !important; }}
+[data-testid="stLayoutWrapper"]:has(> [class*="st-key-cp_"] details.cp[data-hide="1"]) {{ display:none !important; }}
 
 /* ---------- popover (export) ---------- */
 [data-testid="stPopoverBody"] {{ border-radius:16px !important; border:1px solid var(--line) !important;
@@ -412,7 +446,7 @@ body:has([data-testid="stSidebar"][aria-expanded="false"]) #ns-filters {{ displa
 
 
 # One-time JS: copy buttons, remembered open cards, the floating Filters button.
-APP_JS = """
+APP_JS = r"""
 <script>
 (function () {
   if (window.__btInit) return; window.__btInit = true;
@@ -423,6 +457,8 @@ APP_JS = """
   // remember which counterparty cards are open across reruns
   document.addEventListener('toggle', function (e) {
     var d = e.target; if (!d.matches || !d.matches('details.cp[data-key]')) return;
+    if (d.__prog) { d.__prog = false; return; }            // opened/closed by the search, not the user
+    if (d.dataset.auto === '1') { delete d.dataset.auto; if (!d.open) d.dataset.closedq = lastQ || ''; return; }
     var s = openSet(); if (d.open) s.add(d.dataset.key); else s.delete(d.dataset.key); saveSet(s);
   }, true);
   function restore(root) {
@@ -466,9 +502,62 @@ APP_JS = """
     document.body.appendChild(btn);
   }
 
-  restore(document); ensureFilters();
-  new MutationObserver(function () { restore(document); ensureFilters(); })
-    .observe(document.body, { childList: true, subtree: true });
+  // instant search: same rules as invoices.search_match (name, item lines, amounts).
+  // Streamlit commits the text after a short pause (live=) for totals/export;
+  // this filter reacts on every keystroke so cards never wait for the server.
+  var lastQ = null;
+  function normq(s) { return (s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function digitsOf(q) { return /^[0-9\s,.'֏]+$/.test(q) ? q.replace(/[^0-9]/g, '') : ''; }
+  function fmt(n, dec) { return Number(n).toLocaleString('en-US', { maximumFractionDigits: dec || 0 }); }
+  function setText(el, v) { if (el && el.textContent !== v) el.textContent = v; }
+  function applyFilter(force) {
+    var box = document.querySelector('.st-key-q input');
+    var raw = box ? box.value : '';
+    var q = normq(raw);
+    if (!force && q === lastQ) return;
+    lastQ = q;
+    var d = digitsOf(q), n = 0, qty = 0, amt = 0;
+    document.querySelectorAll('details.cp[data-name]').forEach(function (c) {
+      var nameHit = !!q && c.dataset.name.indexOf(q) !== -1;
+      var totalHit = !!d && c.dataset.amount.indexOf(d) !== -1;
+      var rows = 0;
+      c.querySelectorAll('tr[data-dish]').forEach(function (tr) {
+        var hit = !!q && (tr.dataset.dish.indexOf(q) !== -1 || (!!d && tr.dataset.amt.indexOf(d) !== -1));
+        if (hit) { rows++; if (tr.getAttribute('data-hit') !== '1') tr.setAttribute('data-hit', '1'); }
+        else if (tr.hasAttribute('data-hit')) tr.removeAttribute('data-hit');
+      });
+      var match = !q || nameHit || totalHit || rows > 0;
+      if (match) { if (c.hasAttribute('data-hide')) c.removeAttribute('data-hide'); }
+      else if (c.getAttribute('data-hide') !== '1') c.setAttribute('data-hide', '1');
+      var chip = c.querySelector('.hitchip');
+      if (chip) {
+        var show = !!q && rows > 0;
+        setText(chip, rows + (rows === 1 ? ' matching line' : ' matching lines'));
+        if (chip.hidden === show) chip.hidden = !show;
+      }
+      var want = !!q && rows > 0 && !nameHit;   // match is inside the lines: open the card
+      if (want && !c.open && c.dataset.closedq !== q) { c.__prog = true; c.open = true; c.dataset.auto = '1'; }
+      else if (!want && c.dataset.auto === '1') { c.__prog = true; c.open = false; delete c.dataset.auto; }
+      if (match) { n++; qty += parseFloat(c.dataset.qty) || 0; amt += parseFloat(c.dataset.total) || 0; }
+    });
+    document.querySelectorAll('[data-sum="count"]').forEach(function (e) { setText(e, fmt(n)); });
+    document.querySelectorAll('[data-sum="qty"]').forEach(function (e) { setText(e, fmt(qty, 3)); });
+    document.querySelectorAll('[data-sum="amount"]').forEach(function (e) { setText(e, fmt(amt)); });
+    var nm = document.querySelector('[data-nomatch]');
+    if (nm) { var none = !!q && n === 0; if (nm.hidden === none) nm.hidden = !none; setText(nm.querySelector('.q'), raw.trim()); }
+  }
+  document.addEventListener('input', function (e) {
+    if (e.target && e.target.closest && e.target.closest('.st-key-q')) applyFilter(false);
+  }, true);
+  setInterval(function () { applyFilter(false); }, 150);   // catches the clear (x) button too
+
+  var queued = false;
+  function sync() {
+    if (queued) return; queued = true;
+    requestAnimationFrame(function () { queued = false; restore(document); ensureFilters(); applyFilter(true); });
+  }
+  restore(document); ensureFilters(); applyFilter(true);
+  new MutationObserver(sync).observe(document.body, { childList: true, subtree: true });
 })();
 </script>
 """
