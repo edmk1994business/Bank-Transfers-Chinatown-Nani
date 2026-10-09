@@ -15,13 +15,15 @@ import streamlit as st
 
 from bank_transfers import dates, ui
 from bank_transfers.config import (
-    ALL_BRANDS, ASSETS, BRAND_OPTIONS, CUSTOM, GROUP_DAY, GROUP_PERIOD, PRESETS,
+    ALL_BRANDS, ASSETS, BRAND_OPTIONS, CUSTOM, DEFAULT_BRAND, GROUP_DAY, GROUP_PERIOD, PRESETS,
 )
 from bank_transfers.data import clear_cache, load_transfers
 from bank_transfers.export import (
     all_invoices_xlsx, invoice_csv, invoice_xlsx, safe_filename, tsv_b64,
 )
-from bank_transfers.invoices import build_invoices, filter_rows, fmt_date, fmt_int, kpis, period_label
+from bank_transfers.invoices import (
+    build_invoices, filter_rows, fmt_date, fmt_int, kpis, period_label, search_invoices,
+)
 from bank_transfers.theme import APP_JS, build_css
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -34,9 +36,8 @@ st.set_page_config(
 )
 
 ss = st.session_state
-ss.setdefault("brand", ALL_BRANDS)
+ss.setdefault("brand", DEFAULT_BRAND)
 ss.setdefault("grouping", GROUP_PERIOD)
-ss.setdefault("sort", "Amount")
 dates.init_state()
 
 # ?refresh=1 (used by the RPA after it overwrites the Dropbox file)
@@ -142,48 +143,54 @@ if view.empty:
     st.stop()
 
 # -------------------------------------------------------- counterparties --
-per_day = ss.grouping == GROUP_DAY
-all_invoices = build_invoices(view, per_day=per_day)
-with st.container(key="toolbar"):
-    t1, t2, t3 = st.columns([1.5, 1.5, 1], vertical_alignment="bottom", gap="small")
-    query = t1.text_input("Search counterparty", key="q", placeholder="Search counterparty…",
-                          label_visibility="collapsed", icon=":material/search:")
-    sorts = ["Amount", "Name", "Items"] + (["Date"] if per_day else [])
-    if ss.sort not in sorts:
-        ss.sort = "Amount"
-    with t2:
-        st.radio("Sort by", sorts, key="sort", horizontal=True, label_visibility="collapsed")
-    t3.download_button(
-        "Export all (Excel)", type="primary", icon=":material/download:", width="stretch",
-        data=partial(all_invoices_xlsx, all_invoices, start, end, per_day),
-        file_name=safe_filename("Bank_transfers", brand.replace(" ", ""), fmt_date(start), fmt_date(end)) + ".xlsx",
-        mime=XLSX, on_click="ignore", key="exp_all",
-    )
+@st.fragment
+def counterparties(view, brand: str, start, end, per_day: bool) -> None:
+    """Search reruns only this fragment. Every card is always rendered; the browser
+    script hides non-matching ones on each keystroke, while the committed query
+    (live, after a short pause) drives the totals strip and the Excel export."""
+    all_invoices = build_invoices(view, per_day=per_day)
+    with st.container(key="toolbar"):
+        t1, t2, t3 = st.columns([1.2, 1.6, 0.8], vertical_alignment="center", gap="small")
+        query = t1.text_input(
+            "Search", key="q", type="search", live="250ms", label_visibility="collapsed",
+            placeholder="Search counterparty, item or amount…",
+        ) or ""
+        shown = search_invoices(all_invoices, query)
+        with t2:
+            st.html(ui.summary_strip(shown, query))
+        t3.download_button(
+            "Export all (Excel)", type="primary", icon=":material/download:", width="stretch",
+            data=partial(all_invoices_xlsx, shown, start, end, per_day, brand, query),
+            file_name=safe_filename("Bank_transfers", brand.replace(" ", ""), fmt_date(start), fmt_date(end),
+                                    f"search-{query.strip()}" if query.strip() else "") + ".xlsx",
+            mime=XLSX, on_click="ignore", key="exp_all",
+        )
 
-invoices = build_invoices(view, per_day=per_day, sort=ss.sort, query=query or "")
-st.html(ui.section_head(len(invoices), per_day))
-if not invoices:
-    st.info(f"No counterparty matches “{query}”.")
+    st.html(ui.section_head(len(shown), per_day))
+    st.html(ui.no_match(query, len(shown)))
 
-show_brand = brand == ALL_BRANDS
-for rank, inv in enumerate(invoices, 1):
-    h = hashlib.md5(inv.key.encode("utf-8")).hexdigest()[:12]
-    period = fmt_date(inv.dates[0]) if per_day else f"{fmt_date(start)} – {fmt_date(end)}"
-    base = safe_filename("Invoice", inv.counterparty, inv.brand,
-                         inv.dates[0].isoformat() if per_day else f"{start:%Y%m%d}-{end:%Y%m%d}")
-    with st.container(key=f"cp_{h}"):
-        st.html(ui.counterparty_card(inv, rank, show_brand, per_day, h))
-        with st.popover("Copy / Export Invoice Summary (CSV/Excel)", icon=":material/ios_share:", key=f"pop_{h}"):
-            st.html(ui.export_head(inv, period))
-            st.html(ui.copy_button(tsv_b64(inv), len(inv.items)))
-            d1, d2 = st.columns(2, gap="small")
-            d1.download_button("CSV", data=partial(invoice_csv, inv, start, end), file_name=base + ".csv",
-                               mime="text/csv", on_click="ignore", icon=":material/description:",
-                               key=f"csv_{h}", width="stretch")
-            d2.download_button("Excel", data=partial(invoice_xlsx, inv, start, end), file_name=base + ".xlsx",
-                               mime=XLSX, on_click="ignore", icon=":material/table_view:",
-                               key=f"xlsx_{h}", width="stretch")
-            st.html(ui.COPY_NOTE)
+    show_brand = brand == ALL_BRANDS
+    for rank, inv in enumerate(all_invoices, 1):
+        h = hashlib.md5(inv.key.encode("utf-8")).hexdigest()[:12]
+        period = fmt_date(inv.dates[0]) if per_day else f"{fmt_date(start)} – {fmt_date(end)}"
+        base = safe_filename("Invoice", inv.counterparty, inv.brand,
+                             inv.dates[0].isoformat() if per_day else f"{start:%Y%m%d}-{end:%Y%m%d}")
+        with st.container(key=f"cp_{h}"):
+            st.html(ui.counterparty_card(inv, rank, show_brand, per_day, h))
+            with st.popover("Copy / Export Invoice Summary (CSV/Excel)", icon=":material/ios_share:", key=f"pop_{h}"):
+                st.html(ui.export_head(inv, period))
+                st.html(ui.copy_button(tsv_b64(inv), len(inv.items)))
+                d1, d2 = st.columns(2, gap="small")
+                d1.download_button("CSV", data=partial(invoice_csv, inv, start, end), file_name=base + ".csv",
+                                   mime="text/csv", on_click="ignore", icon=":material/description:",
+                                   key=f"csv_{h}", width="stretch")
+                d2.download_button("Excel", data=partial(invoice_xlsx, inv, start, end), file_name=base + ".xlsx",
+                                   mime=XLSX, on_click="ignore", icon=":material/table_view:",
+                                   key=f"xlsx_{h}", width="stretch")
+                st.html(ui.COPY_NOTE)
+
+
+counterparties(view, brand, start, end, ss.grouping == GROUP_DAY)
 
 st.html(
     f'<div class="foot">Source: Bank-Transfers.xlsx (iiko OLAP) · amounts after discount, AMD · '
