@@ -1,6 +1,7 @@
 """Filtering, KPIs and per-counterparty invoice building (pure pandas)."""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date
 
@@ -77,7 +78,7 @@ def _items(rows: pd.DataFrame) -> pd.DataFrame:
     return it[["dish", "en", "am", "qty", "unit_price", "amount"]]
 
 
-def build_invoices(df: pd.DataFrame, per_day: bool = False, sort: str = "Amount", query: str = "") -> list[Invoice]:
+def build_invoices(df: pd.DataFrame, per_day: bool = False, sort: str = "Amount") -> list[Invoice]:
     if df.empty:
         return []
     total = float(df["amount"].sum()) or 1.0
@@ -94,9 +95,6 @@ def build_invoices(df: pd.DataFrame, per_day: bool = False, sort: str = "Amount"
             qty=float(rows["qty"].sum()), amount=float(rows["amount"].sum()),
             share=float(rows["amount"].sum()) / total, items=_items(rows),
         ))
-    q = query.strip().lower()
-    if q:
-        out = [i for i in out if q in i.counterparty.lower()]
     if sort == "Name":
         out.sort(key=lambda i: (i.counterparty.lower(), i.brand, i.dates[0]))
     elif sort == "Items":
@@ -106,6 +104,44 @@ def build_invoices(df: pd.DataFrame, per_day: bool = False, sort: str = "Amount"
     else:
         out.sort(key=lambda i: (-i.amount, i.counterparty.lower()))
     return out
+
+
+# ---------------------------------------------------------------- search --
+# Same rules as the browser-side instant filter in theme.APP_JS, so the
+# summary totals and the Excel export always match what is on screen.
+_NUMERIC_Q = re.compile(r"[0-9\s,.'֏]+")
+
+
+def norm_text(s: str) -> str:
+    return re.sub(r"\s+", " ", str(s)).strip().lower()
+
+
+def amount_key(x: float) -> str:
+    return str(int(round(float(x))))
+
+
+def query_digits(q: str) -> str:
+    """'46,000' / '46 000 ֏' -> '46000'; non-numeric queries -> ''."""
+    return re.sub(r"[^0-9]", "", q) if _NUMERIC_Q.fullmatch(q) else ""
+
+
+def search_match(inv: Invoice, query: str) -> tuple[bool, list[int]]:
+    """Match counterparty name, item names or amounts (invoice total / line totals)."""
+    q = norm_text(query)
+    if not q:
+        return True, []
+    d = query_digits(q)
+    name_hit = q in norm_text(inv.counterparty)
+    total_hit = bool(d) and d in amount_key(inv.amount)
+    rows = [
+        i for i, r in enumerate(inv.items.itertuples())
+        if q in norm_text(r.dish) or (bool(d) and d in amount_key(r.amount))
+    ]
+    return name_hit or total_hit or bool(rows), rows
+
+
+def search_invoices(invoices: list[Invoice], query: str) -> list[Invoice]:
+    return [i for i in invoices if search_match(i, query)[0]]
 
 
 # ------------------------------------------------------------ formatting --
