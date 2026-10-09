@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 
 import streamlit as st
 
-from .config import CUSTOM, DEFAULT_PRESET, TZ
+from .config import CUSTOM, DEFAULT_PRESET, PRESETS, TZ
 
 
 def today() -> date:
@@ -32,13 +32,14 @@ _PRESET_WIDGETS = ("sb_preset", "hd_preset")
 
 def init_state() -> None:
     ss = st.session_state
-    if "d_preset" not in ss:
+    if "d_preset" not in ss or ss.d_preset not in PRESETS:
         ss.d_preset = DEFAULT_PRESET
         ss.d_start, ss.d_end = preset_range(DEFAULT_PRESET)
     if ss.d_preset != CUSTOM:  # keep rolling presets current (e.g. after midnight)
         ss.d_start, ss.d_end = preset_range(ss.d_preset)
     for k in _PRESET_WIDGETS:
-        ss.setdefault(k, ss.d_preset)
+        if ss.get(k) not in PRESETS:
+            ss[k] = ss.d_preset
     ss.setdefault("hd_start", ss.d_start)
     ss.setdefault("hd_end", ss.d_end)
     ss.setdefault("sb_range", (ss.d_start, ss.d_end))
