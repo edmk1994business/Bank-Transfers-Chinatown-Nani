@@ -71,19 +71,25 @@ def kpi_grid(k: dict) -> str:
 def section_head(n: int, per_day: bool) -> str:
     hint = "One card per counterparty per day" if per_day else "One card per counterparty for the period"
     return (
-        f'<div class="sec-head"><h3>Counterparties<span class="count" data-sum="count">{n}</span></h3>'
+        f'<div class="sec-head"><h3>Counterparties<span class="count" data-sum="cards">{n}</span></h3>'
         f'<span class="hint">{hint} · tap a card to see its invoice lines</span></div>'
     )
 
 
+def checks_count(invoices: list[Invoice]) -> int:
+    """Unique (counterparty, date, brand) combinations = transfer orders/checks.
+    Cards are keyed by (counterparty, brand[, date]) so their day counts add up exactly."""
+    return sum(len(i.dates) for i in invoices)
+
+
 def summary_strip(invoices: list[Invoice], query: str) -> str:
     """Filtered totals beside the search box; the browser script keeps them live while typing."""
-    n = len(invoices)
+    n = checks_count(invoices)
     qty = sum(i.qty for i in invoices)
     amount = sum(i.amount for i in invoices)
     return (
         f'<div class="sumstrip" data-q="{escape(norm_text(query))}">'
-        f'<div class="sum"><span class="lbl">Checks / Invoices</span><span class="val" data-sum="count">{n}</span></div>'
+        f'<div class="sum"><span class="lbl">Checks / Invoices</span><span class="val" data-sum="checks">{n}</span></div>'
         f'<div class="sum"><span class="lbl">Items QTY</span><span class="val" data-sum="qty">{fmt_qty(qty)}</span></div>'
         f'<div class="sum amount"><span class="lbl">Invoice sales</span><span class="val">'
         f'<span data-sum="amount">{fmt_int(amount)}</span><span class="cur">֏</span></span></div></div>'
@@ -151,7 +157,7 @@ def counterparty_card(inv: Invoice, rank: int, show_brand: bool, per_day: bool, 
     )
     return (
         f'<details class="cp" data-key="{escape(html_key)}" data-name="{escape(norm_text(inv.counterparty))}" '
-        f'data-amount="{amount_key(inv.amount)}" data-total="{inv.amount:.2f}" data-qty="{inv.qty:g}"><summary>'
+        f'data-amount="{amount_key(inv.amount)}" data-total="{inv.amount:.2f}" data-qty="{inv.qty:g}" data-days="{len(inv.dates)}"><summary>'
         f'<span class="chev" aria-hidden="true"></span><span class="cp-rank">{rank:02d}</span>'
         f'<div class="cp-id"><div class="{name_cls}">{name}</div><div class="cp-meta">{"".join(meta)}</div></div>'
         f"{stats}</summary>"
